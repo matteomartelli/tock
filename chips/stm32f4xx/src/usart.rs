@@ -12,8 +12,8 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks::clocks;
 use crate::dma;
-use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
 #[repr(C)]
@@ -180,9 +180,9 @@ enum USARTStateTX {
     Transfer_Completing, // DMA finished, but not all bytes sent
 }
 
-pub struct Usart<'a, DMA: dma::StreamServer<'a>> {
+pub struct Usart<'a, S, DMA: dma::StreamServer<'a>> {
     registers: StaticRef<UsartRegisters>,
-    clock: UsartClock<'a>,
+    clock: UsartClock<'a, S>,
 
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
@@ -211,25 +211,25 @@ pub struct Usart<'a, DMA: dma::StreamServer<'a>> {
 pub struct TxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 pub struct RxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 
-impl<'a> Usart<'a, dma::Dma1<'a>> {
-    pub fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+impl<'a, S> Usart<'a, S, dma::Dma1<'a, S>> {
+    pub fn new_usart2(clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Self::new(
             USART2_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
-                rcc,
+            UsartClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB1(clocks::PCLK1::USART2),
+                clocks,
             )),
             dma::Dma1Peripheral::USART2_TX,
             dma::Dma1Peripheral::USART2_RX,
         )
     }
 
-    pub fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart3(clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Self::new(
             USART3_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
-                rcc,
+            UsartClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB1(clocks::PCLK1::USART3),
+                clocks,
             )),
             dma::Dma1Peripheral::USART3_TX,
             dma::Dma1Peripheral::USART3_RX,
@@ -237,13 +237,13 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
     }
 }
 
-impl<'a> Usart<'a, dma::Dma2<'a>> {
-    pub fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
+impl<'a, S> Usart<'a, S, dma::Dma2<'a, S>> {
+    pub fn new_usart1(clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Self::new(
             USART1_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
-                rcc,
+            UsartClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB2(clocks::PCLK2::USART1),
+                clocks,
             )),
             dma::Dma2Peripheral::USART1_TX,
             dma::Dma2Peripheral::USART1_RX,
@@ -251,13 +251,13 @@ impl<'a> Usart<'a, dma::Dma2<'a>> {
     }
 }
 
-impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
+impl<'a, S, DMA: dma::StreamServer<'a>> Usart<'a, S, DMA> {
     fn new(
         base_addr: StaticRef<UsartRegisters>,
-        clock: UsartClock<'a>,
+        clock: UsartClock<'a, S>,
         tx_dma_pid: DMA::Peripheral,
         rx_dma_pid: DMA::Peripheral,
-    ) -> Usart<'a, DMA> {
+    ) -> Self {
         Usart {
             registers: base_addr,
             clock: clock,
@@ -558,7 +558,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     }
 }
 
-impl<'a, DMA: dma::StreamServer<'a>> DeferredCallClient for Usart<'a, DMA> {
+impl<'a, S, DMA: dma::StreamServer<'a>> DeferredCallClient for Usart<'a, S, DMA> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
@@ -586,7 +586,7 @@ impl<'a, DMA: dma::StreamServer<'a>> DeferredCallClient for Usart<'a, DMA> {
     }
 }
 
-impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Transmit<'a> for Usart<'a, DMA> {
+impl<'a, S, DMA: dma::StreamServer<'a>> hil::uart::Transmit<'a> for Usart<'a, S, DMA> {
     fn set_transmit_client(&self, client: &'a dyn hil::uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -632,7 +632,7 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Transmit<'a> for Usart<'a, DMA> 
     }
 }
 
-impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
+impl<'a, S, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, S, DMA> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         if params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
@@ -666,7 +666,7 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
     }
 }
 
-impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Receive<'a> for Usart<'a, DMA> {
+impl<'a, S, DMA: dma::StreamServer<'a>> hil::uart::Receive<'a> for Usart<'a, S, DMA> {
     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -709,21 +709,21 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Receive<'a> for Usart<'a, DMA> {
     }
 }
 
-impl<'a> dma::StreamClient<'a, dma::Dma1<'a>> for Usart<'a, dma::Dma1<'a>> {
+impl<'a, S> dma::StreamClient<'a, dma::Dma1<'a, S>> for Usart<'a, S, dma::Dma1<'a, S>> {
     fn transfer_done(&self, pid: dma::Dma1Peripheral) {
         self.transfer_done(pid);
     }
 }
 
-impl<'a> dma::StreamClient<'a, dma::Dma2<'a>> for Usart<'a, dma::Dma2<'a>> {
+impl<'a, S> dma::StreamClient<'a, dma::Dma2<'a, S>> for Usart<'a, S, dma::Dma2<'a, S>> {
     fn transfer_done(&self, pid: dma::Dma2Peripheral) {
         self.transfer_done(pid);
     }
 }
 
-struct UsartClock<'a>(rcc::PeripheralClock<'a>);
+struct UsartClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for UsartClock<'_> {
+impl<S> ClockInterface for UsartClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

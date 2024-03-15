@@ -12,7 +12,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 
-use crate::rcc;
+use crate::clocks::clocks;
 
 pub enum I2CSpeed {
     Speed100k,
@@ -183,9 +183,9 @@ const I2C1_BASE: StaticRef<I2CRegisters> =
 // const I2C3_BASE: StaticRef<I2CRegisters> =
 //     unsafe { StaticRef::new(0x4000_5C00 as *const I2CRegisters) };
 
-pub struct I2C<'a> {
+pub struct I2C<'a, S> {
     registers: StaticRef<I2CRegisters>,
-    clock: I2CClock<'a>,
+    clock: I2CClock<'a, S>,
 
     // I2C slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
@@ -209,13 +209,13 @@ enum I2CStatus {
     Reading,
 }
 
-impl<'a> I2C<'a> {
-    pub fn new(rcc: &'a rcc::Rcc) -> Self {
+impl<'a, S> I2C<'a, S> {
+    pub fn new(clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Self {
             registers: I2C1_BASE,
-            clock: I2CClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::I2C1),
-                rcc,
+            clock: I2CClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB1(clocks::PCLK1::I2C1),
+                clocks,
             )),
 
             master_client: OptionalCell::empty(),
@@ -404,7 +404,7 @@ impl<'a> I2C<'a> {
     }
 }
 
-impl<'a> i2c::I2CMaster<'a> for I2C<'a> {
+impl<'a, S> i2c::I2CMaster<'a> for I2C<'a, S> {
     fn set_master_client(&self, master_client: &'a dyn I2CHwMasterClient) {
         self.master_client.replace(master_client);
     }
@@ -472,9 +472,9 @@ impl<'a> i2c::I2CMaster<'a> for I2C<'a> {
     }
 }
 
-struct I2CClock<'a>(rcc::PeripheralClock<'a>);
+struct I2CClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for I2CClock<'_> {
+impl<S> ClockInterface for I2CClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

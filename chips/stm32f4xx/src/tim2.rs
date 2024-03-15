@@ -13,8 +13,8 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks::clocks;
 use crate::nvic;
-use crate::rcc;
 
 /// General purpose timers
 #[repr(C)]
@@ -311,20 +311,20 @@ register_bitfields![u32,
 const TIM2_BASE: StaticRef<Tim2Registers> =
     unsafe { StaticRef::new(0x40000000 as *const Tim2Registers) };
 
-pub struct Tim2<'a> {
+pub struct Tim2<'a, S> {
     registers: StaticRef<Tim2Registers>,
-    clock: Tim2Clock<'a>,
+    clock: Tim2Clock<'a, S>,
     client: OptionalCell<&'a dyn AlarmClient>,
     irqn: u32,
 }
 
-impl<'a> Tim2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+impl<'a, S> Tim2<'a, S> {
+    pub const fn new(clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Self {
             registers: TIM2_BASE,
-            clock: Tim2Clock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::TIM2),
-                rcc,
+            clock: Tim2Clock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB1(clocks::PCLK1::TIM2),
+                clocks,
             )),
             client: OptionalCell::empty(),
             irqn: nvic::TIM2,
@@ -373,7 +373,7 @@ impl<'a> Tim2<'a> {
     }
 }
 
-impl Time for Tim2<'_> {
+impl<S> Time for Tim2<'_, S> {
     type Frequency = Freq16KHz;
     type Ticks = Ticks32;
 
@@ -382,7 +382,7 @@ impl Time for Tim2<'_> {
     }
 }
 
-impl<'a> Counter<'a> for Tim2<'a> {
+impl<'a, S> Counter<'a> for Tim2<'a, S> {
     fn set_overflow_client(&self, _client: &'a dyn OverflowClient) {}
 
     // starts the timer
@@ -407,7 +407,7 @@ impl<'a> Counter<'a> for Tim2<'a> {
     }
 }
 
-impl<'a> Alarm<'a> for Tim2<'a> {
+impl<'a, S> Alarm<'a> for Tim2<'a, S> {
     fn set_alarm_client(&self, client: &'a dyn AlarmClient) {
         self.client.set(client);
     }
@@ -453,9 +453,9 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 }
 
-struct Tim2Clock<'a>(rcc::PeripheralClock<'a>);
+struct Tim2Clock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for Tim2Clock<'_> {
+impl<S> ClockInterface for Tim2Clock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

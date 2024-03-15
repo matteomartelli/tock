@@ -12,8 +12,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::clocks;
 use crate::exti::{self, LineId};
-use crate::rcc;
 
 /// General-purpose I/Os
 #[repr(C)]
@@ -477,8 +477,8 @@ pub enum PinId {
     PH00 = 0b1110000, PH01 = 0b1110001,
 }
 
-impl<'a> GpioPorts<'a> {
-    pub fn get_pin(&self, pinid: PinId) -> Option<&Pin<'a>> {
+impl<'a, S> GpioPorts<'a, S> {
+    pub fn get_pin(&self, pinid: PinId) -> Option<&Pin<'a, S>> {
         let mut port_num: u8 = pinid as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
@@ -491,7 +491,7 @@ impl<'a> GpioPorts<'a> {
         self.pins[usize::from(port_num)][usize::from(pin_num)].as_ref()
     }
 
-    pub fn get_port(&self, pinid: PinId) -> &Port {
+    pub fn get_port(&self, pinid: PinId) -> &Port<S> {
         let mut port_num: u8 = pinid as u8;
 
         // Right shift p by 4 bits, so we can get rid of pin bits
@@ -499,7 +499,7 @@ impl<'a> GpioPorts<'a> {
         &self.ports[usize::from(port_num)]
     }
 
-    pub fn get_port_from_port_id(&self, portid: PortId) -> &Port {
+    pub fn get_port_from_port_id(&self, portid: PortId) -> &Port<S> {
         &self.ports[portid as usize]
     }
 }
@@ -583,9 +583,9 @@ enum_from_primitive! {
     }
 }
 
-pub struct Port<'a> {
+pub struct Port<'a, S> {
     registers: StaticRef<GpioRegisters>,
-    clock: PortClock<'a>,
+    clock: PortClock<'a, S>,
 }
 
 macro_rules! declare_gpio_pins {
@@ -602,69 +602,69 @@ macro_rules! declare_gpio_pins {
 // a template on how to structure the relationship between ports and pins.
 // We need to use `Option<Pin>`, instead of just `Pin` because GPIOH has
 // only two pins - PH00 and PH01, rather than the usual sixteen pins.
-pub struct GpioPorts<'a> {
-    ports: [Port<'a>; 8],
-    pub pins: [[Option<Pin<'a>>; 16]; 8],
+pub struct GpioPorts<'a, S> {
+    ports: [Port<'a, S>; 8],
+    pub pins: [[Option<Pin<'a, S>>; 16]; 8],
 }
 
-impl<'a> GpioPorts<'a> {
-    pub fn new(rcc: &'a rcc::Rcc, exti: &'a exti::Exti<'a>) -> Self {
+impl<'a, S> GpioPorts<'a, S> {
+    pub fn new(clocks: &'a clocks::Clocks<'a, S>, exti: &'a exti::Exti<'a, S>) -> Self {
         Self {
             ports: [
                 Port {
                     registers: GPIOA_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOA),
-                        rcc,
+                    clock: PortClock(clocks::PeripheralClock::new(
+                        clocks::PeripheralClockType::AHB1(clocks::HCLK1::GPIOA),
+                        clocks,
                     )),
                 },
                 Port {
                     registers: GPIOB_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOB),
-                        rcc,
+                    clock: PortClock(clocks::PeripheralClock::new(
+                        clocks::PeripheralClockType::AHB1(clocks::HCLK1::GPIOB),
+                        clocks,
                     )),
                 },
                 Port {
                     registers: GPIOC_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOC),
-                        rcc,
+                    clock: PortClock(clocks::PeripheralClock::new(
+                        clocks::PeripheralClockType::AHB1(clocks::HCLK1::GPIOC),
+                        clocks,
                     )),
                 },
                 Port {
                     registers: GPIOD_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOD),
-                        rcc,
+                    clock: PortClock(clocks::PeripheralClock::new(
+                        clocks::PeripheralClockType::AHB1(clocks::HCLK1::GPIOD),
+                        clocks,
                     )),
                 },
                 Port {
                     registers: GPIOE_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOE),
-                        rcc,
+                    clock: PortClock(clocks::PeripheralClock::new(
+                        clocks::PeripheralClockType::AHB1(clocks::HCLK1::GPIOE),
+                        clocks,
                     )),
                 },
                 Port {
                     registers: GPIOF_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOF),
-                        rcc,
+                    clock: PortClock(clocks::PeripheralClock::new(
+                        clocks::PeripheralClockType::AHB1(clocks::HCLK1::GPIOF),
+                        clocks,
                     )),
                 },
                 Port {
                     registers: GPIOG_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOG),
-                        rcc,
+                    clock: PortClock(clocks::PeripheralClock::new(
+                        clocks::PeripheralClockType::AHB1(clocks::HCLK1::GPIOG),
+                        clocks,
                     )),
                 },
                 Port {
                     registers: GPIOH_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB1(rcc::HCLK1::GPIOH),
-                        rcc,
+                    clock: PortClock(clocks::PeripheralClock::new(
+                        clocks::PeripheralClockType::AHB1(clocks::HCLK1::GPIOH),
+                        clocks,
                     )),
                 },
             ],
@@ -728,7 +728,7 @@ impl<'a> GpioPorts<'a> {
     }
 }
 
-impl Port<'_> {
+impl<S> Port<'_, S> {
     pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
     }
@@ -742,9 +742,9 @@ impl Port<'_> {
     }
 }
 
-struct PortClock<'a>(rcc::PeripheralClock<'a>);
+struct PortClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for PortClock<'_> {
+impl<S> ClockInterface for PortClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -759,16 +759,16 @@ impl ClockInterface for PortClock<'_> {
 }
 
 // `exti_lineid` is used to configure EXTI settings for the Pin.
-pub struct Pin<'a> {
+pub struct Pin<'a, S> {
     pinid: PinId,
-    ports_ref: OptionalCell<&'a GpioPorts<'a>>,
-    exti: &'a exti::Exti<'a>,
+    ports_ref: OptionalCell<&'a GpioPorts<'a, S>>,
+    exti: &'a exti::Exti<'a, S>,
     client: OptionalCell<&'a dyn hil::gpio::Client>,
     exti_lineid: OptionalCell<exti::LineId>,
 }
 
-impl<'a> Pin<'a> {
-    pub const fn new(pinid: PinId, exti: &'a exti::Exti<'a>) -> Self {
+impl<'a, S> Pin<'a, S> {
+    pub const fn new(pinid: PinId, exti: &'a exti::Exti<'a, S>) -> Self {
         Self {
             pinid,
             ports_ref: OptionalCell::empty(),
@@ -778,7 +778,7 @@ impl<'a> Pin<'a> {
         }
     }
 
-    pub fn set_ports_ref(&self, ports: &'a GpioPorts<'a>) {
+    pub fn set_ports_ref(&self, ports: &'a GpioPorts<'a, S>) {
         self.ports_ref.set(ports);
     }
 
@@ -1107,7 +1107,7 @@ impl<'a> Pin<'a> {
     }
 }
 
-impl hil::gpio::Configure for Pin<'_> {
+impl<S> hil::gpio::Configure for Pin<'_, S> {
     /// Output mode default is push-pull
     fn make_output(&self) -> hil::gpio::Configuration {
         self.set_mode(Mode::GeneralPurposeOutputMode);
@@ -1179,7 +1179,7 @@ impl hil::gpio::Configure for Pin<'_> {
     }
 }
 
-impl hil::gpio::Output for Pin<'_> {
+impl<S> hil::gpio::Output for Pin<'_, S> {
     fn set(&self) {
         self.set_output_high();
     }
@@ -1193,13 +1193,13 @@ impl hil::gpio::Output for Pin<'_> {
     }
 }
 
-impl hil::gpio::Input for Pin<'_> {
+impl<S> hil::gpio::Input for Pin<'_, S> {
     fn read(&self) -> bool {
         self.read_input()
     }
 }
 
-impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
+impl<'a, S> hil::gpio::Interrupt<'a> for Pin<'a, S> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         unsafe {
             atomic(|| {

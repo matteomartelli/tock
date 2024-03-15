@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::rcc;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
@@ -12,6 +11,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+
+use crate::clocks::clocks;
 
 /// FSMC peripheral interface
 #[repr(C)]
@@ -157,10 +158,10 @@ pub const FSMC_BANK3: StaticRef<FsmcBank> =
     unsafe { StaticRef::new(0x68000000 as *const FsmcBank) };
 // const FSMC_BANK4_RESERVED: StaticRef<FsmcBank> = unsafe { StaticRef::new(0x0 as *const FsmcBank) };
 
-pub struct Fsmc<'a> {
+pub struct Fsmc<'a, S> {
     registers: StaticRef<FsmcBankRegisters>,
     bank: [Option<StaticRef<FsmcBank>>; 4],
-    clock: FsmcClock<'a>,
+    clock: FsmcClock<'a, S>,
 
     client: OptionalCell<&'static dyn Client>,
 
@@ -171,14 +172,14 @@ pub struct Fsmc<'a> {
     deferred_call: DeferredCall,
 }
 
-impl<'a> Fsmc<'a> {
-    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], rcc: &'a rcc::Rcc) -> Self {
+impl<'a, S> Fsmc<'a, S> {
+    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Self {
             registers: FSMC_BASE,
             bank: bank_addr,
-            clock: FsmcClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB3(rcc::HCLK3::FMC),
-                rcc,
+            clock: FsmcClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::AHB3(clocks::HCLK3::FMC),
+                clocks,
             )),
             client: OptionalCell::empty(),
 
@@ -277,7 +278,7 @@ impl<'a> Fsmc<'a> {
     }
 }
 
-impl DeferredCallClient for Fsmc<'_> {
+impl<S> DeferredCallClient for Fsmc<'_, S> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
@@ -298,9 +299,9 @@ impl DeferredCallClient for Fsmc<'_> {
     }
 }
 
-struct FsmcClock<'a>(rcc::PeripheralClock<'a>);
+struct FsmcClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for FsmcClock<'_> {
+impl<S> ClockInterface for FsmcClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -314,7 +315,7 @@ impl ClockInterface for FsmcClock<'_> {
     }
 }
 
-impl Bus8080<'static> for Fsmc<'_> {
+impl<S> Bus8080<'static> for Fsmc<'_, S> {
     fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode> {
         match addr_width {
             BusWidth::Bits8 => {

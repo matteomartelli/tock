@@ -11,6 +11,8 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks::clocks;
+
 /// DAC
 #[repr(C)]
 pub struct DacRegisters {
@@ -139,20 +141,20 @@ register_bitfields![u32,
 const DAC_BASE: StaticRef<DacRegisters> =
     unsafe { StaticRef::new(0x40007400 as *const DacRegisters) };
 
-pub struct Dac<'a> {
+pub struct Dac<'a, S> {
     registers: StaticRef<DacRegisters>,
-    clock: DacClock<'a>,
+    clock: DacClock<'a, S>,
     initialized: Cell<bool>,
     enabled: Cell<bool>,
 }
 
-impl<'a> Dac<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+impl<'a, S> Dac<'a, S> {
+    pub const fn new(clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Self {
             registers: DAC_BASE,
-            clock: DacClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::DAC),
-                rcc,
+            clock: DacClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB1(clocks::PCLK1::DAC),
+                clocks,
             )),
             initialized: Cell::new(false),
             enabled: Cell::new(false),
@@ -192,9 +194,9 @@ impl<'a> Dac<'a> {
     }
 }
 
-struct DacClock<'a>(rcc::PeripheralClock<'a>);
+struct DacClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for DacClock<'_> {
+impl<S> ClockInterface for DacClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -208,7 +210,7 @@ impl ClockInterface for DacClock<'_> {
     }
 }
 
-impl hil::dac::DacChannel for Dac<'_> {
+impl<S> hil::dac::DacChannel for Dac<'_, S> {
     fn set_value(&self, value: usize) -> Result<(), ErrorCode> {
         if !self.initialized.get() {
             self.initialize()?;

@@ -318,6 +318,8 @@ unsafe fn start() -> (
 
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
+    let clocks = static_init!(stm32f429zi::clocks::Clocks<Stm32f429Specs>,
+            stm32f429zi::clocks::Clocks::new(&rcc));
 
     let syscfg = static_init!(
         stm32f429zi::syscfg::Syscfg,
@@ -332,7 +334,7 @@ unsafe fn start() -> (
 
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,
-        Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
+        Stm32f429ziDefaultPeripherals::new(rcc, clocks, exti, dma1, dma2)
     );
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;

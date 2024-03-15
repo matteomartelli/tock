@@ -15,9 +15,9 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::clocks;
 use crate::dma;
 use crate::dma::{Dma1, Dma1Peripheral};
-use crate::rcc;
 
 /// Serial peripheral interface
 #[repr(C)]
@@ -149,37 +149,49 @@ pub(crate) fn get_address_dr(regs: StaticRef<SpiRegisters>) -> u32 {
 pub const SPI3_BASE: StaticRef<SpiRegisters> =
     unsafe { StaticRef::new(0x40003C00 as *const SpiRegisters) };
 
-pub struct Spi<'a> {
+pub struct Spi<'a, S> {
     registers: StaticRef<SpiRegisters>,
-    clock: SpiClock<'a>,
+    clock: SpiClock<'a, S>,
 
     // SPI slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 
-    tx_dma: OptionalCell<&'a dma::Stream<'a, Dma1<'a>>>,
+    tx_dma: OptionalCell<&'a dma::Stream<'a, Dma1<'a, S>>>,
     tx_dma_pid: Dma1Peripheral,
-    rx_dma: OptionalCell<&'a dma::Stream<'a, Dma1<'a>>>,
+    rx_dma: OptionalCell<&'a dma::Stream<'a, Dma1<'a, S>>>,
     rx_dma_pid: Dma1Peripheral,
 
     dma_len: Cell<usize>,
     transfers_in_progress: Cell<u8>,
 
-    active_slave: OptionalCell<&'a crate::gpio::Pin<'a>>,
+    active_slave: OptionalCell<&'a crate::gpio::Pin<'a, S>>,
 
     active_after: Cell<bool>,
 }
 
 // for use by `set_dma`
-pub struct TxDMA<'a>(pub &'a dma::Stream<'a, Dma1<'a>>);
-pub struct RxDMA<'a>(pub &'a dma::Stream<'a, Dma1<'a>>);
+pub struct TxDMA<'a, S>(pub &'a dma::Stream<'a, Dma1<'a, S>>);
+pub struct RxDMA<'a, S>(pub &'a dma::Stream<'a, Dma1<'a, S>>);
 
-impl<'a> Spi<'a> {
+impl<'a, S> Spi<'a, S> {
+    pub fn new_spi3(clocks: &'a clocks::Clocks<'a, S>) -> Self {
+        Self::new(
+            SPI3_BASE,
+            SpiClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB1(clocks::PCLK1::SPI3),
+                clocks,
+            )),
+            dma::Dma1Peripheral::SPI3_TX,
+            dma::Dma1Peripheral::SPI3_RX,
+        )
+    }
+
     pub const fn new(
         base_addr: StaticRef<SpiRegisters>,
-        clock: SpiClock<'a>,
+        clock: SpiClock<'a, S>,
         tx_dma_pid: Dma1Peripheral,
         rx_dma_pid: Dma1Peripheral,
-    ) -> Spi<'a> {
+    ) -> Spi<'a, S> {
         Spi {
             registers: base_addr,
             clock,
@@ -212,7 +224,7 @@ impl<'a> Spi<'a> {
         self.clock.disable();
     }
 
-    pub fn set_dma(&self, tx_dma: TxDMA<'a>, rx_dma: RxDMA<'a>) {
+    pub fn set_dma(&self, tx_dma: TxDMA<'a, S>, rx_dma: RxDMA<'a, S>) {
         self.tx_dma.set(tx_dma.0);
         self.rx_dma.set(rx_dma.0);
     }
@@ -222,7 +234,7 @@ impl<'a> Spi<'a> {
         // interrupts during normal operations
     }
 
-    fn set_active_slave(&self, slave_pin: &'a crate::gpio::Pin<'a>) {
+    fn set_active_slave(&self, slave_pin: &'a crate::gpio::Pin<'a, S>) {
         self.active_slave.set(slave_pin);
     }
 
@@ -340,8 +352,8 @@ impl<'a> Spi<'a> {
     }
 }
 
-impl<'a> spi::SpiMaster<'a> for Spi<'a> {
-    type ChipSelect = &'a crate::gpio::Pin<'a>;
+impl<'a, S> spi::SpiMaster<'a> for Spi<'a, S> {
+    type ChipSelect = &'a crate::gpio::Pin<'a, S>;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);
@@ -475,7 +487,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     }
 }
 
-impl<'a> dma::StreamClient<'a, Dma1<'a>> for Spi<'a> {
+impl<'a, S> dma::StreamClient<'a, Dma1<'a, S>> for Spi<'a, S> {
     fn transfer_done(&self, pid: Dma1Peripheral) {
         if pid == self.tx_dma_pid {
             self.disable_tx();
@@ -510,9 +522,9 @@ impl<'a> dma::StreamClient<'a, Dma1<'a>> for Spi<'a> {
     }
 }
 
-pub struct SpiClock<'a>(pub rcc::PeripheralClock<'a>);
+pub struct SpiClock<'a, S>(pub clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for SpiClock<'_> {
+impl<S> ClockInterface for SpiClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

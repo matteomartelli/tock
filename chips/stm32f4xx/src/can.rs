@@ -8,7 +8,7 @@
 //! Low-level CAN driver for STM32F4XX chips
 //!
 
-use crate::rcc;
+use crate::clocks::clocks;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::can::{self, StandardBitTiming};
@@ -440,9 +440,9 @@ impl From<CanState> for can::State {
     }
 }
 
-pub struct Can<'a> {
+pub struct Can<'a, S> {
     registers: StaticRef<Registers>,
-    clock: CanClock<'a>,
+    clock: CanClock<'a, S>,
     can_state: Cell<CanState>,
     error_interrupt_counter: Cell<u32>,
     fifo0_interrupt_counter: Cell<u32>,
@@ -471,13 +471,13 @@ pub struct Can<'a> {
     deferred_action: OptionalCell<AsyncAction>,
 }
 
-impl<'a> Can<'a> {
-    pub fn new(rcc: &'a rcc::Rcc, registers: StaticRef<Registers>) -> Can<'a> {
+impl<'a, S> Can<'a, S> {
+    pub fn new(clocks: &'a clocks::Clocks<'a, S>, registers: StaticRef<Registers>) -> Self {
         Can {
             registers: registers,
-            clock: CanClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::CAN1),
-                rcc,
+            clock: CanClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB1(clocks::PCLK1::CAN1),
+                clocks,
             )),
             can_state: Cell::new(CanState::Sleep),
             error_interrupt_counter: Cell::new(0),
@@ -528,7 +528,7 @@ impl<'a> Can<'a> {
         // must wait for ACK from the peripheral - the INAK bit to be set
         // (as explained in RM0090 Reference Manual, Chapter 32.4.1).
         // This is done by checking the INAK bit 20_000 times or until it is set.
-        if !Can::wait_for(20000, || self.registers.can_msr.is_set(CAN_MSR::INAK)) {
+        if !Can::<S>::wait_for(20000, || self.registers.can_msr.is_set(CAN_MSR::INAK)) {
             return Err(kernel::ErrorCode::FAIL);
         }
 
@@ -538,7 +538,7 @@ impl<'a> Can<'a> {
         // must wait for ACK from the peripheral - the SLAK bit to be cleared
         // (as explained in RM0090 Reference Manual, Chapter 32.4, Figure 336).
         // This is done by checking the SLAK bit 20_000 times or until it is cleared.
-        if !Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::SLAK)) {
+        if !Can::<S>::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::SLAK)) {
             return Err(kernel::ErrorCode::FAIL);
         }
 
@@ -668,7 +668,7 @@ impl<'a> Can<'a> {
         // must wait for ACK from the peripheral - the INAK bit to be cleared
         // (as explained in RM0090 Reference Manual, Chapter 32.4.2).
         // This is done by checking the INAK bit 20_000 times or until it is cleared.
-        if !Can::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::INAK)) {
+        if !Can::<S>::wait_for(20000, || !self.registers.can_msr.is_set(CAN_MSR::INAK)) {
             return Err(kernel::ErrorCode::FAIL);
         }
 
@@ -1068,7 +1068,7 @@ impl<'a> Can<'a> {
     }
 }
 
-impl DeferredCallClient for Can<'_> {
+impl<S> DeferredCallClient for Can<'_, S> {
     fn register(&'static self) {
         self.deferred_call.register(self)
     }
@@ -1113,9 +1113,9 @@ impl DeferredCallClient for Can<'_> {
     }
 }
 
-struct CanClock<'a>(rcc::PeripheralClock<'a>);
+struct CanClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for CanClock<'_> {
+impl<S> ClockInterface for CanClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -1129,7 +1129,7 @@ impl ClockInterface for CanClock<'_> {
     }
 }
 
-impl can::Configure for Can<'_> {
+impl<S> can::Configure for Can<'_, S> {
     const MIN_BIT_TIMINGS: can::BitTiming = can::BitTiming {
         segment1: BitSegment1::CanBtrTs1Min as u8,
         segment2: BitSegment2::CanBtrTs2Min as u8,
@@ -1230,7 +1230,7 @@ impl can::Configure for Can<'_> {
     }
 }
 
-impl can::Controller for Can<'_> {
+impl<S> can::Controller for Can<'_, S> {
     fn set_client(&self, client: Option<&'static dyn can::ControllerClient>) {
         if let Some(client) = client {
             self.controller_client.replace(client);
@@ -1292,7 +1292,7 @@ impl can::Controller for Can<'_> {
     }
 }
 
-impl can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
+impl<S> can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_, S> {
     fn set_client(
         &self,
         client: Option<&'static dyn can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,
@@ -1331,7 +1331,7 @@ impl can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
     }
 }
 
-impl can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
+impl<S> can::Receive<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_, S> {
     fn set_client(
         &self,
         client: Option<&'static dyn can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>>,

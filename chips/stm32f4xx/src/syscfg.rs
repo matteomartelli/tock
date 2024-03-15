@@ -9,8 +9,8 @@ use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::clocks;
 use crate::gpio;
-use crate::rcc;
 
 /// System configuration controller
 #[repr(C)]
@@ -119,18 +119,18 @@ enum_from_primitive! {
     }
 }
 
-pub struct Syscfg<'a> {
+pub struct Syscfg<'a, S> {
     registers: StaticRef<SyscfgRegisters>,
-    clock: SyscfgClock<'a>,
+    clock: SyscfgClock<'a, S>,
 }
 
-impl<'a> Syscfg<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+impl<'a, S> Syscfg<'a, S> {
+    pub const fn new(clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Self {
             registers: SYSCFG_BASE,
-            clock: SyscfgClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::SYSCFG),
-                rcc,
+            clock: SyscfgClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB2(clocks::PCLK2::SYSCFG),
+                clocks,
             )),
         }
     }
@@ -230,9 +230,9 @@ impl<'a> Syscfg<'a> {
     }
 }
 
-struct SyscfgClock<'a>(rcc::PeripheralClock<'a>);
+struct SyscfgClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for SyscfgClock<'_> {
+impl<S> ClockInterface for SyscfgClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }

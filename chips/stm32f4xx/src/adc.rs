@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::rcc;
 use core::cell::Cell;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
@@ -11,6 +10,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+
+use crate::clocks::clocks;
 
 #[repr(C)]
 struct AdcRegisters {
@@ -305,22 +306,22 @@ enum ADCStatus {
     OneSample,
 }
 
-pub struct Adc<'a> {
+pub struct Adc<'a, S> {
     registers: StaticRef<AdcRegisters>,
     common_registers: StaticRef<AdcCommonRegisters>,
-    clock: AdcClock<'a>,
+    clock: AdcClock<'a, S>,
     status: Cell<ADCStatus>,
     client: OptionalCell<&'a dyn hil::adc::Client>,
 }
 
-impl<'a> Adc<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Adc {
+impl<'a, S> Adc<'a, S> {
+    pub const fn new(clocks: &'a clocks::Clocks<'a, S>) -> Self {
         Adc {
             registers: ADC1_BASE,
             common_registers: ADC_COMMON_BASE,
-            clock: AdcClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::ADC1),
-                rcc,
+            clock: AdcClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::APB2(clocks::PCLK2::ADC1),
+                clocks,
             )),
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),
@@ -369,9 +370,9 @@ impl<'a> Adc<'a> {
     }
 }
 
-struct AdcClock<'a>(rcc::PeripheralClock<'a>);
+struct AdcClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for AdcClock<'_> {
+impl<S> ClockInterface for AdcClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -385,7 +386,7 @@ impl ClockInterface for AdcClock<'_> {
     }
 }
 
-impl<'a> hil::adc::Adc<'a> for Adc<'a> {
+impl<'a, S> hil::adc::Adc<'a> for Adc<'a, S> {
     type Channel = Channel;
 
     fn sample(&self, channel: &Self::Channel) -> Result<(), ErrorCode> {
@@ -433,7 +434,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
 }
 
 /// Not yet supported
-impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
+impl<'a, S> hil::adc::AdcHighSpeed<'a> for Adc<'a, S> {
     /// Capture buffered samples from the ADC continuously at a given
     /// frequency, calling the client whenever a buffer fills up. The client is
     /// then expected to either stop sampling or provide an additional buffer

@@ -4,7 +4,6 @@
 
 //! True random number generator
 
-use crate::rcc;
 use kernel::hil;
 use kernel::hil::entropy::Continue;
 use kernel::platform::chip::ClockInterface;
@@ -13,6 +12,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+
+use crate::clocks::clocks;
 
 #[repr(C)]
 pub struct RngRegisters {
@@ -51,19 +52,19 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct Trng<'a> {
+pub struct Trng<'a, S> {
     registers: StaticRef<RngRegisters>,
-    clock: RngClock<'a>,
+    clock: RngClock<'a, S>,
     client: OptionalCell<&'a dyn hil::entropy::Client32>,
 }
 
-impl<'a> Trng<'a> {
-    pub const fn new(registers: StaticRef<RngRegisters>, rcc: &'a rcc::Rcc) -> Trng<'a> {
-        Trng {
+impl<'a, S> Trng<'a, S> {
+    pub const fn new(registers: StaticRef<RngRegisters>, clocks: &'a clocks::Clocks<'a, S>) -> Self {
+        Self {
             registers: registers,
-            clock: RngClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB2(rcc::HCLK2::RNG),
-                rcc,
+            clock: RngClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::AHB2(clocks::HCLK2::RNG),
+                clocks,
             )),
             client: OptionalCell::empty(),
         }
@@ -108,9 +109,9 @@ impl<'a> Trng<'a> {
     }
 }
 
-struct RngClock<'a>(rcc::PeripheralClock<'a>);
+struct RngClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for RngClock<'_> {
+impl<S> ClockInterface for RngClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -124,9 +125,9 @@ impl ClockInterface for RngClock<'_> {
     }
 }
 
-struct TrngIter<'a, 'b: 'a>(&'a Trng<'b>);
+struct TrngIter<'a, 'b: 'a, S>(&'a Trng<'b, S>);
 
-impl Iterator for TrngIter<'_, '_> {
+impl<S> Iterator for TrngIter<'_, '_, S> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
@@ -139,7 +140,7 @@ impl Iterator for TrngIter<'_, '_> {
     }
 }
 
-impl<'a> hil::entropy::Entropy32<'a> for Trng<'a> {
+impl<'a, S> hil::entropy::Entropy32<'a> for Trng<'a, S> {
     fn get(&self) -> Result<(), ErrorCode> {
         // Enable interrupts.
         self.registers.cr.modify(Control::IE::SET);

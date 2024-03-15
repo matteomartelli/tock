@@ -10,8 +10,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::clocks;
 use crate::nvic;
-use crate::rcc;
 use crate::spi;
 use crate::usart;
 
@@ -1373,9 +1373,9 @@ pub trait StreamClient<'a, DMA: StreamServer<'a>> {
     fn transfer_done(&self, pid: DMA::Peripheral);
 }
 
-struct DmaClock<'a>(rcc::PeripheralClock<'a>);
+struct DmaClock<'a, S>(clocks::PeripheralClock<'a, S>);
 
-impl ClockInterface for DmaClock<'_> {
+impl<S> ClockInterface for DmaClock<'_, S> {
     fn is_enabled(&self) -> bool {
         self.0.is_enabled()
     }
@@ -1496,7 +1496,7 @@ impl StreamPeripheral for Dma1Peripheral {
     }
 }
 
-pub fn new_dma1_stream<'a>(dma: &'a Dma1) -> [Stream<'a, Dma1<'a>>; 8] {
+pub fn new_dma1_stream<'a, S>(dma: &'a Dma1<'a, S>) -> [Stream<'a, Dma1<'a, S>>; 8] {
     [
         Stream::new(StreamId::Stream0, dma),
         Stream::new(StreamId::Stream1, dma),
@@ -1536,18 +1536,18 @@ const DMA1_BASE: StaticRef<DmaRegisters> =
 /// > Static checks are good, and the code duplication here looks manageable (i.e. it's pretty formulaic and unlikely to need to change much if at all).
 ///
 /// For details, see [the full discussion](https://github.com/tock/tock/pull/2936#discussion_r792908212).
-pub struct Dma1<'a> {
+pub struct Dma1<'a, S> {
     registers: StaticRef<DmaRegisters>,
-    clock: DmaClock<'a>,
+    clock: DmaClock<'a, S>,
 }
 
-impl<'a> Dma1<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Dma1 {
-        Dma1 {
+impl<'a, S> Dma1<'a, S> {
+    pub const fn new(clocks: &'a clocks::Clocks<'a, S>) -> Self {
+        Self {
             registers: DMA1_BASE,
-            clock: DmaClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA1),
-                rcc,
+            clock: DmaClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::AHB1(clocks::HCLK1::DMA1),
+                clocks,
             )),
         }
     }
@@ -1565,7 +1565,7 @@ impl<'a> Dma1<'a> {
     }
 }
 
-impl<'a> StreamServer<'a> for Dma1<'a> {
+impl<'a, S> StreamServer<'a> for Dma1<'a, S> {
     type Peripheral = Dma1Peripheral;
 
     fn registers(&self) -> &DmaRegisters {
@@ -1640,7 +1640,7 @@ impl StreamPeripheral for Dma2Peripheral {
     }
 }
 
-pub fn new_dma2_stream<'a>(dma: &'a Dma2) -> [Stream<'a, Dma2<'a>>; 8] {
+pub fn new_dma2_stream<'a, S>(dma: &'a Dma2<'a, S>) -> [Stream<'a, Dma2<'a, S>>; 8] {
     [
         Stream::new(StreamId::Stream0, dma),
         Stream::new(StreamId::Stream1, dma),
@@ -1657,18 +1657,18 @@ const DMA2_BASE: StaticRef<DmaRegisters> =
     unsafe { StaticRef::new(0x40026400 as *const DmaRegisters) };
 
 /// For an explanation of why this is its own type, see the docs for the Dma1 struct.
-pub struct Dma2<'a> {
+pub struct Dma2<'a, S> {
     registers: StaticRef<DmaRegisters>,
-    clock: DmaClock<'a>,
+    clock: DmaClock<'a, S>,
 }
 
-impl<'a> Dma2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Dma2 {
-        Dma2 {
+impl<'a, S> Dma2<'a, S> {
+    pub const fn new(clocks: &'a clocks::Clocks<'a, S>) -> Self {
+        Self {
             registers: DMA2_BASE,
-            clock: DmaClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA2),
-                rcc,
+            clock: DmaClock(clocks::PeripheralClock::new(
+                clocks::PeripheralClockType::AHB1(clocks::HCLK1::DMA2),
+                clocks,
             )),
         }
     }
@@ -1686,7 +1686,7 @@ impl<'a> Dma2<'a> {
     }
 }
 
-impl<'a> StreamServer<'a> for Dma2<'a> {
+impl<'a, S> StreamServer<'a> for Dma2<'a, S> {
     type Peripheral = Dma2Peripheral;
 
     fn registers(&self) -> &DmaRegisters {
