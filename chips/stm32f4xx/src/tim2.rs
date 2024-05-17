@@ -15,6 +15,7 @@ use kernel::ErrorCode;
 
 use crate::nvic;
 use crate::rcc;
+use crate::clocks::ClocksCtrl;
 
 /// General purpose timers
 #[repr(C)]
@@ -319,12 +320,12 @@ pub struct Tim2<'a> {
 }
 
 impl<'a> Tim2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clocks: &'a dyn ClocksCtrl) -> Self {
         Self {
             registers: TIM2_BASE,
             clock: Tim2Clock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::TIM2),
-                rcc,
+                clocks,
             )),
             client: OptionalCell::empty(),
             irqn: nvic::TIM2,

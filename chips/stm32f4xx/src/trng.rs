@@ -5,6 +5,7 @@
 //! True random number generator
 
 use crate::rcc;
+use crate::clocks::ClocksCtrl;
 use kernel::hil;
 use kernel::hil::entropy::Continue;
 use kernel::platform::chip::ClockInterface;
@@ -58,12 +59,12 @@ pub struct Trng<'a> {
 }
 
 impl<'a> Trng<'a> {
-    pub const fn new(registers: StaticRef<RngRegisters>, rcc: &'a rcc::Rcc) -> Trng<'a> {
+    pub const fn new(registers: StaticRef<RngRegisters>, clocks: &'a dyn ClocksCtrl) -> Trng<'a> {
         Trng {
             registers: registers,
             clock: RngClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::AHB2(rcc::HCLK2::RNG),
-                rcc,
+                clocks,
             )),
             client: OptionalCell::empty(),
         }

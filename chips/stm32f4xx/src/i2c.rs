@@ -13,6 +13,7 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use crate::rcc;
+use crate::clocks::ClocksCtrl;
 
 pub enum I2CSpeed {
     Speed100k,
@@ -210,12 +211,12 @@ enum I2CStatus {
 }
 
 impl<'a> I2C<'a> {
-    pub fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new(clocks: &'a dyn ClocksCtrl) -> Self {
         Self {
             registers: I2C1_BASE,
             clock: I2CClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::I2C1),
-                rcc,
+                clocks,
             )),
 
             master_client: OptionalCell::empty(),

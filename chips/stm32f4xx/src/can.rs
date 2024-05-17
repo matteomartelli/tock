@@ -17,6 +17,7 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+use crate::clocks::ClocksCtrl;
 
 pub const BRP_MIN_STM32: u32 = 0;
 pub const BRP_MAX_STM32: u32 = 1023;
@@ -472,12 +473,12 @@ pub struct Can<'a> {
 }
 
 impl<'a> Can<'a> {
-    pub fn new(rcc: &'a rcc::Rcc, registers: StaticRef<Registers>) -> Can<'a> {
+    pub fn new(clocks: &'a dyn ClocksCtrl, registers: StaticRef<Registers>) -> Can<'a> {
         Can {
             registers: registers,
             clock: CanClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::CAN1),
-                rcc,
+                clocks,
             )),
             can_state: Cell::new(CanState::Sleep),
             error_interrupt_counter: Cell::new(0),

@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use crate::rcc;
+use crate::clocks::clocks::ClocksCtrl;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
@@ -172,13 +173,13 @@ pub struct Fsmc<'a> {
 }
 
 impl<'a> Fsmc<'a> {
-    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], rcc: &'a rcc::Rcc) -> Self {
+    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], clocks: &'a dyn ClocksCtrl) -> Self {
         Self {
             registers: FSMC_BASE,
             bank: bank_addr,
             clock: FsmcClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::AHB3(rcc::HCLK3::FMC),
-                rcc,
+                clocks,
             )),
             client: OptionalCell::empty(),
 

@@ -11,6 +11,7 @@ use kernel::utilities::StaticRef;
 
 use crate::gpio;
 use crate::rcc;
+use crate::clocks::ClocksCtrl;
 
 /// System configuration controller
 #[repr(C)]
@@ -125,12 +126,12 @@ pub struct Syscfg<'a> {
 }
 
 impl<'a> Syscfg<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clocks: &'a dyn ClocksCtrl) -> Self {
         Self {
             registers: SYSCFG_BASE,
             clock: SyscfgClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB2(rcc::PCLK2::SYSCFG),
-                rcc,
+                clocks,
             )),
         }
     }
