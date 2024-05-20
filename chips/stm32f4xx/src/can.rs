@@ -9,6 +9,7 @@
 //!
 
 use crate::rcc;
+use crate::clocks::periph;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::can::{self, StandardBitTiming};
@@ -475,8 +476,8 @@ impl<'a> Can<'a> {
     pub fn new(rcc: &'a rcc::Rcc, registers: StaticRef<Registers>) -> Can<'a> {
         Can {
             registers: registers,
-            clock: CanClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::CAN1),
+            clock: CanClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(periph::PCLK1::CAN1),
                 rcc,
             )),
             can_state: Cell::new(CanState::Sleep),
@@ -1113,7 +1114,7 @@ impl DeferredCallClient for Can<'_> {
     }
 }
 
-struct CanClock<'a>(rcc::PeripheralClock<'a>);
+struct CanClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for CanClock<'_> {
     fn is_enabled(&self) -> bool {

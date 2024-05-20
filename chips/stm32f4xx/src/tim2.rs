@@ -15,6 +15,7 @@ use kernel::ErrorCode;
 
 use crate::nvic;
 use crate::rcc;
+use crate::clocks::periph;
 
 /// General purpose timers
 #[repr(C)]
@@ -322,8 +323,8 @@ impl<'a> Tim2<'a> {
     pub const fn new(rcc: &'a rcc::Rcc) -> Self {
         Self {
             registers: TIM2_BASE,
-            clock: Tim2Clock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::TIM2),
+            clock: Tim2Clock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(periph::PCLK1::TIM2),
                 rcc,
             )),
             client: OptionalCell::empty(),
@@ -453,7 +454,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 }
 
-struct Tim2Clock<'a>(rcc::PeripheralClock<'a>);
+struct Tim2Clock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for Tim2Clock<'_> {
     fn is_enabled(&self) -> bool {

@@ -74,8 +74,8 @@ impl<'a> WindoWdg<'a> {
     pub const fn new(rcc: &'a rcc::Rcc) -> Self {
         Self {
             registers: WINDOW_WATCHDOG_BASE,
-            clock: WdgClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::WWDG),
+            clock: WdgClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(rcc::PCLK1::WWDG),
                 rcc,
             )),
             enabled: Cell::new(false),
@@ -129,7 +129,7 @@ impl<'a> WindoWdg<'a> {
     }
 }
 
-struct WdgClock<'a>(rcc::PeripheralClock<'a>);
+struct WdgClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for WdgClock<'_> {
     fn is_enabled(&self) -> bool {

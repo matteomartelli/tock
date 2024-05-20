@@ -5,6 +5,7 @@
 //! True random number generator
 
 use crate::rcc;
+use crate::clocks::periph;
 use kernel::hil;
 use kernel::hil::entropy::Continue;
 use kernel::platform::chip::ClockInterface;
@@ -61,8 +62,8 @@ impl<'a> Trng<'a> {
     pub const fn new(registers: StaticRef<RngRegisters>, rcc: &'a rcc::Rcc) -> Trng<'a> {
         Trng {
             registers: registers,
-            clock: RngClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB2(rcc::HCLK2::RNG),
+            clock: RngClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::AHB2(periph::HCLK2::RNG),
                 rcc,
             )),
             client: OptionalCell::empty(),
@@ -108,7 +109,7 @@ impl<'a> Trng<'a> {
     }
 }
 
-struct RngClock<'a>(rcc::PeripheralClock<'a>);
+struct RngClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for RngClock<'_> {
     fn is_enabled(&self) -> bool {

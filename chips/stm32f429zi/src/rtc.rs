@@ -26,6 +26,7 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 use stm32f4xx::rcc;
+use stm32f4xx::clocks::periph;
 
 /// Register block to control RTC
 #[repr(C)]
@@ -365,8 +366,8 @@ RTC_BKPXR[
 pub struct Rtc<'a> {
     registers: StaticRef<RtcRegisters>,
     client: OptionalCell<&'a dyn date_time::DateTimeClient>,
-    pub clock: rcc::PeripheralClock<'a>,
-    pub pwr_clock: rcc::PeripheralClock<'a>,
+    pub clock: periph::PeripheralClock<'a>,
+    pub pwr_clock: periph::PeripheralClock<'a>,
     time: Cell<DateTimeValues>,
 
     deferred_call: DeferredCall,
@@ -401,8 +402,8 @@ impl<'a> Rtc<'a> {
         Rtc {
             registers: RTC_BASE,
             client: OptionalCell::empty(),
-            clock: rcc::PeripheralClock::new(rcc::PeripheralClockType::RTC, rcc),
-            pwr_clock: rcc::PeripheralClock::new(rcc::PeripheralClockType::PWR, rcc),
+            clock: periph::PeripheralClock::new(periph::PeripheralClockType::RTC, rcc),
+            pwr_clock: periph::PeripheralClock::new(periph::PeripheralClockType::PWR, rcc),
             time: Cell::new(DateTimeValues {
                 year: 0,
                 month: Month::January,

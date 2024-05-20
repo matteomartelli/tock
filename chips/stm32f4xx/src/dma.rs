@@ -14,6 +14,7 @@ use crate::nvic;
 use crate::rcc;
 use crate::spi;
 use crate::usart;
+use crate::clocks::periph;
 
 /// DMA controller
 #[repr(C)]
@@ -1373,7 +1374,7 @@ pub trait StreamClient<'a, DMA: StreamServer<'a>> {
     fn transfer_done(&self, pid: DMA::Peripheral);
 }
 
-struct DmaClock<'a>(rcc::PeripheralClock<'a>);
+struct DmaClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for DmaClock<'_> {
     fn is_enabled(&self) -> bool {
@@ -1545,8 +1546,8 @@ impl<'a> Dma1<'a> {
     pub const fn new(rcc: &'a rcc::Rcc) -> Dma1 {
         Dma1 {
             registers: DMA1_BASE,
-            clock: DmaClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA1),
+            clock: DmaClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::AHB1(periph::HCLK1::DMA1),
                 rcc,
             )),
         }
@@ -1666,8 +1667,8 @@ impl<'a> Dma2<'a> {
     pub const fn new(rcc: &'a rcc::Rcc) -> Dma2 {
         Dma2 {
             registers: DMA2_BASE,
-            clock: DmaClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA2),
+            clock: DmaClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::AHB1(periph::HCLK1::DMA2),
                 rcc,
             )),
         }

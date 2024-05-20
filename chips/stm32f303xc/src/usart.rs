@@ -340,8 +340,8 @@ impl<'a> Usart<'a> {
     pub fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART1_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
+            UsartClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB2(rcc::PCLK2::USART1),
                 rcc,
             )),
         )
@@ -350,8 +350,8 @@ impl<'a> Usart<'a> {
     pub fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART2_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
+            UsartClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(rcc::PCLK1::USART2),
                 rcc,
             )),
         )
@@ -360,8 +360,8 @@ impl<'a> Usart<'a> {
     pub fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART3_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
+            UsartClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(rcc::PCLK1::USART3),
                 rcc,
             )),
         )
@@ -651,7 +651,7 @@ impl<'a> hil::uart::Receive<'a> for Usart<'a> {
     }
 }
 
-struct UsartClock<'a>(rcc::PeripheralClock<'a>);
+struct UsartClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for UsartClock<'_> {
     fn is_enabled(&self) -> bool {

@@ -14,6 +14,7 @@ use kernel::ErrorCode;
 
 use crate::dma;
 use crate::rcc;
+use crate::clocks::periph;
 
 /// Universal synchronous asynchronous receiver transmitter
 #[repr(C)]
@@ -215,8 +216,8 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
     pub fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART2_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
+            UsartClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(periph::PCLK1::USART2),
                 rcc,
             )),
             dma::Dma1Peripheral::USART2_TX,
@@ -227,8 +228,8 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
     pub fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART3_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
+            UsartClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(periph::PCLK1::USART3),
                 rcc,
             )),
             dma::Dma1Peripheral::USART3_TX,
@@ -241,8 +242,8 @@ impl<'a> Usart<'a, dma::Dma2<'a>> {
     pub fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             USART1_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
+            UsartClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB2(periph::PCLK2::USART1),
                 rcc,
             )),
             dma::Dma2Peripheral::USART1_TX,
@@ -721,7 +722,7 @@ impl<'a> dma::StreamClient<'a, dma::Dma2<'a>> for Usart<'a, dma::Dma2<'a>> {
     }
 }
 
-struct UsartClock<'a>(rcc::PeripheralClock<'a>);
+struct UsartClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for UsartClock<'_> {
     fn is_enabled(&self) -> bool {

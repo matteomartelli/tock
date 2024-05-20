@@ -515,8 +515,8 @@ impl<'a> Adc<'a> {
         Self {
             registers: ADC1_BASE,
             common_registers: ADC12_COMMON_BASE,
-            clock: AdcClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB(rcc::HCLK::ADC1),
+            clock: AdcClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::AHB(rcc::HCLK::ADC1),
                 rcc,
             )),
             status: Cell::new(ADCStatus::Off),
@@ -664,7 +664,7 @@ impl<'a> Adc<'a> {
     }
 }
 
-struct AdcClock<'a>(rcc::PeripheralClock<'a>);
+struct AdcClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for AdcClock<'_> {
     fn is_enabled(&self) -> bool {

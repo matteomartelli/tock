@@ -285,8 +285,8 @@ impl<'a> I2C<'a> {
     pub fn new_i2c1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             I2C1_BASE,
-            I2CClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::I2C1),
+            I2CClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(rcc::PCLK1::I2C1),
                 rcc,
             )),
         )
@@ -546,7 +546,7 @@ impl<'a> i2c::I2CMaster<'a> for I2C<'a> {
     }
 }
 
-struct I2CClock<'a>(rcc::PeripheralClock<'a>);
+struct I2CClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for I2CClock<'_> {
     fn is_enabled(&self) -> bool {

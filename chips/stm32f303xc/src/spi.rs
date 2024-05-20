@@ -232,8 +232,8 @@ impl<'a> Spi<'a> {
     pub fn new_spi1(rcc: &'a rcc::Rcc) -> Self {
         Self::new(
             SPI1_BASE,
-            SpiClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::SPI1),
+            SpiClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB2(rcc::PCLK2::SPI1),
                 rcc,
             )),
         )
@@ -544,7 +544,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     }
 }
 
-struct SpiClock<'a>(rcc::PeripheralClock<'a>);
+struct SpiClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for SpiClock<'_> {
     fn is_enabled(&self) -> bool {

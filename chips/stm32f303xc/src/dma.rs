@@ -318,8 +318,8 @@ impl<'a> Dma1<'a> {
     pub const fn new(rcc: &'a rcc::Rcc) -> Self {
         Self {
             _registers: DMA1_BASE,
-            clock: Dma1Clock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB(rcc::HCLK::DMA1),
+            clock: Dma1Clock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::AHB(rcc::HCLK::DMA1),
                 rcc,
             )),
         }
@@ -338,7 +338,7 @@ impl<'a> Dma1<'a> {
     }
 }
 
-struct Dma1Clock<'a>(rcc::PeripheralClock<'a>);
+struct Dma1Clock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for Dma1Clock<'_> {
     fn is_enabled(&self) -> bool {

@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use crate::rcc;
+use crate::clocks::periph;
 use core::cell::Cell;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
@@ -150,8 +151,8 @@ impl<'a> Dac<'a> {
     pub const fn new(rcc: &'a rcc::Rcc) -> Self {
         Self {
             registers: DAC_BASE,
-            clock: DacClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::DAC),
+            clock: DacClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::APB1(periph::PCLK1::DAC),
                 rcc,
             )),
             initialized: Cell::new(false),
@@ -192,7 +193,7 @@ impl<'a> Dac<'a> {
     }
 }
 
-struct DacClock<'a>(rcc::PeripheralClock<'a>);
+struct DacClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for DacClock<'_> {
     fn is_enabled(&self) -> bool {

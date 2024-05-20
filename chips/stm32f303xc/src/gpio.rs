@@ -592,43 +592,43 @@ impl<'a> GpioPorts<'a> {
             ports: [
                 Port {
                     registers: GPIOA_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB(rcc::HCLK::GPIOA),
+                    clock: PortClock(periph::PeripheralClock::new(
+                        periph::PeripheralClockType::AHB(rcc::HCLK::GPIOA),
                         rcc,
                     )),
                 },
                 Port {
                     registers: GPIOB_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB(rcc::HCLK::GPIOB),
+                    clock: PortClock(periph::PeripheralClock::new(
+                        periph::PeripheralClockType::AHB(rcc::HCLK::GPIOB),
                         rcc,
                     )),
                 },
                 Port {
                     registers: GPIOC_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB(rcc::HCLK::GPIOC),
+                    clock: PortClock(periph::PeripheralClock::new(
+                        periph::PeripheralClockType::AHB(rcc::HCLK::GPIOC),
                         rcc,
                     )),
                 },
                 Port {
                     registers: GPIOD_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB(rcc::HCLK::GPIOD),
+                    clock: PortClock(periph::PeripheralClock::new(
+                        periph::PeripheralClockType::AHB(rcc::HCLK::GPIOD),
                         rcc,
                     )),
                 },
                 Port {
                     registers: GPIOE_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB(rcc::HCLK::GPIOE),
+                    clock: PortClock(periph::PeripheralClock::new(
+                        periph::PeripheralClockType::AHB(rcc::HCLK::GPIOE),
                         rcc,
                     )),
                 },
                 Port {
                     registers: GPIOF_BASE,
-                    clock: PortClock(rcc::PeripheralClock::new(
-                        rcc::PeripheralClockType::AHB(rcc::HCLK::GPIOF),
+                    clock: PortClock(periph::PeripheralClock::new(
+                        periph::PeripheralClockType::AHB(rcc::HCLK::GPIOF),
                         rcc,
                     )),
                 },
@@ -704,7 +704,7 @@ impl<'a> Port<'a> {
     }
 }
 
-struct PortClock<'a>(rcc::PeripheralClock<'a>);
+struct PortClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for PortClock<'_> {
     fn is_enabled(&self) -> bool {

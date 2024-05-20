@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use crate::rcc;
+use crate::clocks::periph;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
@@ -176,8 +177,8 @@ impl<'a> Fsmc<'a> {
         Self {
             registers: FSMC_BASE,
             bank: bank_addr,
-            clock: FsmcClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB3(rcc::HCLK3::FMC),
+            clock: FsmcClock(periph::PeripheralClock::new(
+                periph::PeripheralClockType::AHB3(periph::HCLK3::FMC),
                 rcc,
             )),
             client: OptionalCell::empty(),
@@ -298,7 +299,7 @@ impl DeferredCallClient for Fsmc<'_> {
     }
 }
 
-struct FsmcClock<'a>(rcc::PeripheralClock<'a>);
+struct FsmcClock<'a>(periph::PeripheralClock<'a>);
 
 impl ClockInterface for FsmcClock<'_> {
     fn is_enabled(&self) -> bool {
