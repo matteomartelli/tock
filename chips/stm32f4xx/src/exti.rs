@@ -5,12 +5,12 @@
 use cortexm4::support::atomic;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::PeripheralClockInterface;
 use crate::gpio;
 use crate::syscfg;
 
@@ -389,7 +389,6 @@ enum_from_primitive! {
 // `line_gpiopin_map` is used to call `handle_interrupt()` on the pin.
 pub struct Exti<'a> {
     registers: StaticRef<ExtiRegisters>,
-    clock: ExtiClock<'a>,
     line_gpiopin_map: [OptionalCell<&'static gpio::Pin<'static>>; 16],
     syscfg: &'a syscfg::Syscfg<'a>,
 }
@@ -398,7 +397,7 @@ impl<'a> Exti<'a> {
     pub const fn new(syscfg: &'a syscfg::Syscfg<'a>) -> Self {
         Self {
             registers: EXTI_BASE,
-            clock: ExtiClock(syscfg),
+
             line_gpiopin_map: [
                 OptionalCell::empty(),
                 OptionalCell::empty(),
@@ -421,16 +420,19 @@ impl<'a> Exti<'a> {
         }
     }
 
+    /// Exti peripheral is clocked using PCLK2. However, PCLK2 does not seem to be
+    /// gated. The configuration registers for Exti is in Syscfg, so we need to
+    /// enable clock to Syscfg, when using Exti.
     pub fn is_enabled_clock(&self) -> bool {
-        self.clock.is_enabled()
+        self.syscfg.is_enabled_clock()
     }
 
     pub fn enable_clock(&self) {
-        self.clock.enable();
+        self.syscfg.enable_clock();
     }
 
     pub fn disable_clock(&self) {
-        self.clock.disable();
+        self.syscfg.disable_clock();
     }
 
     pub fn associate_line_gpiopin(&self, lineid: LineId, pin: &'static gpio::Pin<'static>) {
@@ -646,24 +648,5 @@ impl<'a> Exti<'a> {
             flagged_bit += 1;
             exti_pr >>= 1;
         }
-    }
-}
-
-/// Exti peripheral is clocked using PCLK2. However, PCLK2 does not seem to be
-/// gated. The configuration registers for Exti is in Syscfg, so we need to
-/// enable clock to Syscfg, when using Exti.
-struct ExtiClock<'a>(&'a syscfg::Syscfg<'a>);
-
-impl ClockInterface for ExtiClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled_clock()
-    }
-
-    fn enable(&self) {
-        self.0.enable_clock();
-    }
-
-    fn disable(&self) {
-        self.0.disable_clock();
     }
 }

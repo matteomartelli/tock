@@ -8,16 +8,15 @@
 //! Low-level CAN driver for STM32F4XX chips
 //!
 
-use crate::rcc;
-use crate::clocks::periph;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::can::{self, StandardBitTiming};
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
+
+use crate::clocks::PeripheralClockInterface;
 
 pub const BRP_MIN_STM32: u32 = 0;
 pub const BRP_MAX_STM32: u32 = 1023;
@@ -443,7 +442,7 @@ impl From<CanState> for can::State {
 
 pub struct Can<'a> {
     registers: StaticRef<Registers>,
-    clock: CanClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
     can_state: Cell<CanState>,
     error_interrupt_counter: Cell<u32>,
     fifo0_interrupt_counter: Cell<u32>,
@@ -473,13 +472,13 @@ pub struct Can<'a> {
 }
 
 impl<'a> Can<'a> {
-    pub fn new(rcc: &'a rcc::Rcc, registers: StaticRef<Registers>) -> Can<'a> {
+    pub fn new(
+        clock: &'a dyn PeripheralClockInterface,
+        registers: StaticRef<Registers>,
+    ) -> Can<'a> {
         Can {
             registers: registers,
-            clock: CanClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::APB1(periph::PCLK1::CAN1),
-                rcc,
-            )),
+            clock,
             can_state: Cell::new(CanState::Sleep),
             error_interrupt_counter: Cell::new(0),
             fifo0_interrupt_counter: Cell::new(0),
@@ -1111,22 +1110,6 @@ impl DeferredCallClient for Can<'_> {
             // todo no action set
             None => todo!(),
         }
-    }
-}
-
-struct CanClock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for CanClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }
 

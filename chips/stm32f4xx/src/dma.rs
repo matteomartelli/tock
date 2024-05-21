@@ -4,17 +4,15 @@
 
 use core::fmt::Debug;
 
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use crate::nvic;
-use crate::rcc;
 use crate::spi;
 use crate::usart;
-use crate::clocks::periph;
+use crate::clocks::PeripheralClockInterface;
 
 /// DMA controller
 #[repr(C)]
@@ -1374,22 +1372,6 @@ pub trait StreamClient<'a, DMA: StreamServer<'a>> {
     fn transfer_done(&self, pid: DMA::Peripheral);
 }
 
-struct DmaClock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for DmaClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
-    }
-}
-
 // ########################## DMA 1 ######################################
 
 /// List of peripherals managed by DMA1
@@ -1539,17 +1521,14 @@ const DMA1_BASE: StaticRef<DmaRegisters> =
 /// For details, see [the full discussion](https://github.com/tock/tock/pull/2936#discussion_r792908212).
 pub struct Dma1<'a> {
     registers: StaticRef<DmaRegisters>,
-    clock: DmaClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
 }
 
 impl<'a> Dma1<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Dma1 {
+    pub const fn new(clock: &'a dyn PeripheralClockInterface) -> Dma1 {
         Dma1 {
             registers: DMA1_BASE,
-            clock: DmaClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::AHB1(periph::HCLK1::DMA1),
-                rcc,
-            )),
+            clock,
         }
     }
 
@@ -1660,17 +1639,14 @@ const DMA2_BASE: StaticRef<DmaRegisters> =
 /// For an explanation of why this is its own type, see the docs for the Dma1 struct.
 pub struct Dma2<'a> {
     registers: StaticRef<DmaRegisters>,
-    clock: DmaClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
 }
 
 impl<'a> Dma2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Dma2 {
+    pub const fn new(clock: &'a dyn PeripheralClockInterface) -> Dma2 {
         Dma2 {
             registers: DMA2_BASE,
-            clock: DmaClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::AHB1(periph::HCLK1::DMA2),
-                rcc,
-            )),
+            clock,
         }
     }
 

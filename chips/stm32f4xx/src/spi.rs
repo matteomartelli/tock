@@ -9,7 +9,6 @@ use kernel::ErrorCode;
 use kernel::hil;
 use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
@@ -17,7 +16,7 @@ use kernel::utilities::StaticRef;
 
 use crate::dma;
 use crate::dma::{Dma1, Dma1Peripheral};
-use crate::clocks::periph;
+use crate::clocks::PeripheralClockInterface;
 
 /// Serial peripheral interface
 #[repr(C)]
@@ -151,7 +150,7 @@ pub const SPI3_BASE: StaticRef<SpiRegisters> =
 
 pub struct Spi<'a> {
     registers: StaticRef<SpiRegisters>,
-    clock: SpiClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
 
     // SPI slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
@@ -176,7 +175,7 @@ pub struct RxDMA<'a>(pub &'a dma::Stream<'a, Dma1<'a>>);
 impl<'a> Spi<'a> {
     pub const fn new(
         base_addr: StaticRef<SpiRegisters>,
-        clock: SpiClock<'a>,
+        clock: &'a dyn PeripheralClockInterface,
         tx_dma_pid: Dma1Peripheral,
         rx_dma_pid: Dma1Peripheral,
     ) -> Spi<'a> {
@@ -507,21 +506,5 @@ impl<'a> dma::StreamClient<'a, Dma1<'a>> for Spi<'a> {
                 });
             });
         }
-    }
-}
-
-pub struct SpiClock<'a>(pub periph::PeripheralClock<'a>);
-
-impl ClockInterface for SpiClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }

@@ -6,7 +6,6 @@ use cortexm4::support::atomic;
 use kernel::hil::time::{
     Alarm, AlarmClient, Counter, Freq16KHz, Frequency, OverflowClient, Ticks, Ticks32, Time,
 };
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
@@ -14,8 +13,7 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::nvic;
-use crate::rcc;
-use crate::clocks::periph;
+use crate::clocks::PeripheralClockInterface;
 
 /// General purpose timers
 #[repr(C)]
@@ -314,19 +312,16 @@ const TIM2_BASE: StaticRef<Tim2Registers> =
 
 pub struct Tim2<'a> {
     registers: StaticRef<Tim2Registers>,
-    clock: Tim2Clock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
     client: OptionalCell<&'a dyn AlarmClient>,
     irqn: u32,
 }
 
 impl<'a> Tim2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clock: &'a dyn PeripheralClockInterface) -> Self {
         Self {
             registers: TIM2_BASE,
-            clock: Tim2Clock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::APB1(periph::PCLK1::TIM2),
-                rcc,
-            )),
+            clock,
             client: OptionalCell::empty(),
             irqn: nvic::TIM2,
         }
@@ -357,7 +352,7 @@ impl<'a> Tim2<'a> {
 
         self.registers.arr.set(0xFFFF_FFFF - 1);
 
-        let clk_freq = self.clock.0.get_frequency();
+        let clk_freq = self.clock.get_frequency();
 
         // TIM2 uses PCLK1. Set the prescaler to the current PCLK1 frequency divided by the wanted
         // frequency (16KHz).
@@ -451,21 +446,5 @@ impl<'a> Alarm<'a> for Tim2<'a> {
 
     fn minimum_dt(&self) -> Self::Ticks {
         Self::Ticks::from(1)
-    }
-}
-
-struct Tim2Clock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for Tim2Clock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }

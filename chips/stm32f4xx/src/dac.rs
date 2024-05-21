@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::rcc;
-use crate::clocks::periph;
+use crate::clocks::PeripheralClockInterface;
 use core::cell::Cell;
 use kernel::hil;
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
@@ -142,19 +140,16 @@ const DAC_BASE: StaticRef<DacRegisters> =
 
 pub struct Dac<'a> {
     registers: StaticRef<DacRegisters>,
-    clock: DacClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
     initialized: Cell<bool>,
     enabled: Cell<bool>,
 }
 
 impl<'a> Dac<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clock: &'a dyn PeripheralClockInterface) -> Self {
         Self {
             registers: DAC_BASE,
-            clock: DacClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::APB1(periph::PCLK1::DAC),
-                rcc,
-            )),
+            clock,
             initialized: Cell::new(false),
             enabled: Cell::new(false),
         }
@@ -190,22 +185,6 @@ impl<'a> Dac<'a> {
 
     fn enable_clock(&self) {
         self.clock.enable();
-    }
-}
-
-struct DacClock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for DacClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }
 

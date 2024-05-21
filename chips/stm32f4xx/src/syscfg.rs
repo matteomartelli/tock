@@ -4,14 +4,12 @@
 
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use crate::gpio;
-use crate::rcc;
-use crate::clocks::periph;
+use crate::clocks::PeripheralClockInterface;
 
 /// System configuration controller
 #[repr(C)]
@@ -122,17 +120,14 @@ enum_from_primitive! {
 
 pub struct Syscfg<'a> {
     registers: StaticRef<SyscfgRegisters>,
-    clock: SyscfgClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
 }
 
 impl<'a> Syscfg<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clock: &'a dyn PeripheralClockInterface) -> Self {
         Self {
             registers: SYSCFG_BASE,
-            clock: SyscfgClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::APB2(periph::PCLK2::SYSCFG),
-                rcc,
-            )),
+            clock,
         }
     }
 
@@ -228,21 +223,5 @@ impl<'a> Syscfg<'a> {
 
     fn get_exticrid_from_port_num(&self, port_num: u8) -> ExtiCrId {
         ExtiCrId::from_u32(u32::from(port_num)).unwrap()
-    }
-}
-
-struct SyscfgClock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for SyscfgClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }

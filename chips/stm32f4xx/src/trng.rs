@@ -4,16 +4,15 @@
 
 //! True random number generator
 
-use crate::rcc;
-use crate::clocks::periph;
 use kernel::hil;
 use kernel::hil::entropy::Continue;
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+
+use crate::clocks::PeripheralClockInterface;
 
 #[repr(C)]
 pub struct RngRegisters {
@@ -54,18 +53,18 @@ register_bitfields![u32,
 
 pub struct Trng<'a> {
     registers: StaticRef<RngRegisters>,
-    clock: RngClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
     client: OptionalCell<&'a dyn hil::entropy::Client32>,
 }
 
 impl<'a> Trng<'a> {
-    pub const fn new(registers: StaticRef<RngRegisters>, rcc: &'a rcc::Rcc) -> Trng<'a> {
+    pub const fn new(
+        registers: StaticRef<RngRegisters>,
+        clock: &'a dyn PeripheralClockInterface,
+    ) -> Trng<'a> {
         Trng {
             registers: registers,
-            clock: RngClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::AHB2(periph::HCLK2::RNG),
-                rcc,
-            )),
+            clock,
             client: OptionalCell::empty(),
         }
     }
@@ -94,7 +93,7 @@ impl<'a> Trng<'a> {
             self.registers.cr.modify(Control::RNGEN::SET);
             return;
         } else if self.registers.sr.is_set(Status::CEIS) {
-            self.clock.0.configure_rng_clock();
+            self.clock.configure();
             self.registers.sr.modify(Status::CEIS::CLEAR);
             return;
         }
@@ -106,22 +105,6 @@ impl<'a> Trng<'a> {
                 self.registers.cr.modify(Control::RNGEN::CLEAR);
             }
         });
-    }
-}
-
-struct RngClock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for RngClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }
 

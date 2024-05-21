@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::rcc;
-use crate::clocks::periph;
+use crate::clocks::PeripheralClockInterface;
 use core::cell::Cell;
 use kernel::hil;
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
@@ -309,20 +307,17 @@ enum ADCStatus {
 pub struct Adc<'a> {
     registers: StaticRef<AdcRegisters>,
     common_registers: StaticRef<AdcCommonRegisters>,
-    clock: AdcClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
     status: Cell<ADCStatus>,
     client: OptionalCell<&'a dyn hil::adc::Client>,
 }
 
 impl<'a> Adc<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Adc {
+    pub const fn new(clock: &'a dyn PeripheralClockInterface) -> Adc {
         Adc {
             registers: ADC1_BASE,
             common_registers: ADC_COMMON_BASE,
-            clock: AdcClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::APB2(periph::PCLK2::ADC1),
-                rcc,
-            )),
+            clock,
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),
         }
@@ -367,22 +362,6 @@ impl<'a> Adc<'a> {
 
     pub fn enable_temperature(&self) {
         self.common_registers.ccr.modify(CCR::TSVREFE::SET);
-    }
-}
-
-struct AdcClock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for AdcClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }
 

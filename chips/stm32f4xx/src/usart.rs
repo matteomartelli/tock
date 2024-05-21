@@ -5,7 +5,6 @@
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
@@ -13,8 +12,7 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use crate::dma;
-use crate::rcc;
-use crate::clocks::periph;
+use crate::clocks::PeripheralClockInterface;
 
 /// Universal synchronous asynchronous receiver transmitter
 #[repr(C)]
@@ -183,7 +181,7 @@ enum USARTStateTX {
 
 pub struct Usart<'a, DMA: dma::StreamServer<'a>> {
     registers: StaticRef<UsartRegisters>,
-    clock: UsartClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
 
     tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
     rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
@@ -213,25 +211,19 @@ pub struct TxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 pub struct RxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 
 impl<'a> Usart<'a, dma::Dma1<'a>> {
-    pub fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart2(clock: &'a dyn PeripheralClockInterface) -> Self {
         Self::new(
             USART2_BASE,
-            UsartClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::APB1(periph::PCLK1::USART2),
-                rcc,
-            )),
+            clock,
             dma::Dma1Peripheral::USART2_TX,
             dma::Dma1Peripheral::USART2_RX,
         )
     }
 
-    pub fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart3(clock: &'a dyn PeripheralClockInterface) -> Self {
         Self::new(
             USART3_BASE,
-            UsartClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::APB1(periph::PCLK1::USART3),
-                rcc,
-            )),
+            clock,
             dma::Dma1Peripheral::USART3_TX,
             dma::Dma1Peripheral::USART3_RX,
         )
@@ -239,13 +231,10 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
 }
 
 impl<'a> Usart<'a, dma::Dma2<'a>> {
-    pub fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart1(clock: &'a dyn PeripheralClockInterface) -> Self {
         Self::new(
             USART1_BASE,
-            UsartClock(periph::PeripheralClock::new(
-                periph::PeripheralClockType::APB2(periph::PCLK2::USART1),
-                rcc,
-            )),
+            clock,
             dma::Dma2Peripheral::USART1_TX,
             dma::Dma2Peripheral::USART1_RX,
         )
@@ -255,13 +244,13 @@ impl<'a> Usart<'a, dma::Dma2<'a>> {
 impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     fn new(
         base_addr: StaticRef<UsartRegisters>,
-        clock: UsartClock<'a>,
+        clock: &'a dyn PeripheralClockInterface,
         tx_dma_pid: DMA::Peripheral,
         rx_dma_pid: DMA::Peripheral,
     ) -> Usart<'a, DMA> {
         Usart {
             registers: base_addr,
-            clock: clock,
+            clock,
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
@@ -526,7 +515,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         // When OVER8 is enabled, we can only use the lowest three fractional bits, so we'll need
         // to shift those last four bits right one bit
 
-        let pclk_freq = self.clock.0.get_frequency();
+        let pclk_freq = self.clock.get_frequency();
 
         let (mantissa, fraction) = if (pclk_freq / 16) >= baud_rate {
             // We have the ability to oversample to 16 bits, take advantage of it.
@@ -719,21 +708,5 @@ impl<'a> dma::StreamClient<'a, dma::Dma1<'a>> for Usart<'a, dma::Dma1<'a>> {
 impl<'a> dma::StreamClient<'a, dma::Dma2<'a>> for Usart<'a, dma::Dma2<'a>> {
     fn transfer_done(&self, pid: dma::Dma2Peripheral) {
         self.transfer_done(pid);
-    }
-}
-
-struct UsartClock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for UsartClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }

@@ -12,3 +12,4 @@ pub mod periph;
 
 pub use crate::clocks::clocks::tests;
 pub use crate::clocks::clocks::Clocks;
+pub use crate::clocks::periph::{PeripheralClocks, PeripheralClockInterface, GpioClocks};

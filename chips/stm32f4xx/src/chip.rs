@@ -30,7 +30,7 @@ pub struct Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     pub fsmc: crate::fsmc::Fsmc<'a>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub i2c1: crate::i2c::I2C<'a>,
-    pub clocks: crate::clocks::Clocks<'a, ChipSpecs>,
+    pub clocks: &'a crate::clocks::Clocks<'a, ChipSpecs>,
     pub spi3: crate::spi::Spi<'a>,
     pub tim2: crate::tim2::Tim2<'a>,
     pub usart1: crate::usart::Usart<'a, dma::Dma2<'a>>,
@@ -40,15 +40,16 @@ pub struct Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     pub fn new(
-        rcc: &'a crate::rcc::Rcc,
+        clocks: &'a crate::clocks::Clocks<'a, ChipSpecs>,
+        periph_clocks: &'a crate::clocks::PeripheralClocks<'a, ChipSpecs>,
         exti: &'a crate::exti::Exti<'a>,
         dma1: &'a dma::Dma1<'a>,
         dma2: &'a dma::Dma2<'a>,
     ) -> Self {
         Self {
-            adc1: crate::adc::Adc::new(rcc),
-            clocks: crate::clocks::Clocks::new(rcc),
-            dac: crate::dac::Dac::new(rcc),
+            adc1: crate::adc::Adc::new(&periph_clocks.adc1),
+            clocks,
+            dac: crate::dac::Dac::new(&periph_clocks.dac),
             dma1_streams: dma::new_dma1_stream(dma1),
             dma2_streams: dma::new_dma2_stream(dma2),
             exti,
@@ -60,23 +61,20 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
                     Some(crate::fsmc::FSMC_BANK3),
                     None,
                 ],
-                rcc,
+                &periph_clocks.fsmc
             ),
-            gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
-            i2c1: crate::i2c::I2C::new(rcc),
+            gpio_ports: crate::gpio::GpioPorts::new(periph_clocks.get_gpio_ports(), exti),
+            i2c1: crate::i2c::I2C::new(&periph_clocks.i2c1),
             spi3: crate::spi::Spi::new(
                 crate::spi::SPI3_BASE,
-                crate::spi::SpiClock(crate::clocks::periph::PeripheralClock::new(
-                    crate::clocks::periph::PeripheralClockType::APB1(crate::clocks::periph::PCLK1::SPI3),
-                    rcc,
-                )),
+                &periph_clocks.spi3,
                 dma::Dma1Peripheral::SPI3_TX,
                 dma::Dma1Peripheral::SPI3_RX,
             ),
-            tim2: crate::tim2::Tim2::new(rcc),
-            usart1: crate::usart::Usart::new_usart1(rcc),
-            usart2: crate::usart::Usart::new_usart2(rcc),
-            usart3: crate::usart::Usart::new_usart3(rcc),
+            tim2: crate::tim2::Tim2::new(&periph_clocks.tim2),
+            usart1: crate::usart::Usart::new_usart1(&periph_clocks.usart1),
+            usart2: crate::usart::Usart::new_usart2(&periph_clocks.usart2),
+            usart3: crate::usart::Usart::new_usart3(&periph_clocks.usart3),
         }
     }
 

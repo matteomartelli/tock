@@ -1,12 +1,25 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
-//
-use crate::rcc::{Rcc, APBPrescaler, RtcClockSource};
+
+use crate::chip_specific::ChipSpecs;
+use crate::clocks::Clocks;
+use crate::gpio::{GpioPort, GPIO_NUM_PORTS};
+use crate::rcc::{APBPrescaler, Rcc, RtcClockSource};
 use kernel::platform::chip::ClockInterface;
 
-pub struct PeripheralClock<'a> {
+/// Extension to ClockInterface
+pub trait PeripheralClockInterface: ClockInterface {
+    fn get_frequency(&self) -> u32;
+    fn configure(&self);
+}
+
+pub struct PeripheralClock<'a, C>
+where
+    C: ChipSpecs,
+{
     pub clock: PeripheralClockType,
+    clocks: &'a Clocks<'a, C>,
     rcc: &'a Rcc,
 }
 
@@ -64,61 +77,19 @@ pub enum PCLK2 {
     SYSCFG,
 }
 
-impl<'a> PeripheralClock<'a> {
-    pub const fn new(clock: PeripheralClockType, rcc: &'a Rcc) -> Self {
-        Self { clock, rcc }
-    }
-
-    pub fn configure_rng_clock(&self) {
-        self.rcc.configure_rng_clock();
-    }
-
-    pub fn get_frequency(&self) -> u32 {
-        #[inline(always)]
-        fn tim_freq(rcc: &Rcc, hclk_freq: usize, prescaler: APBPrescaler) -> usize {
-            // Reference Manual RM0090 section 6.2
-            // When TIMPRE bit of the RCC_DCKCFGR register is reset, if APBx prescaler is 1, then
-            // TIMxCLK = PCLKx, otherwise TIMxCLK = 2x PCLKx.
-            // When TIMPRE bit in the RCC_DCKCFGR register is set, if APBx prescaler is 1,2 or 4,
-            // then TIMxCLK = HCLK, otherwise TIMxCLK = 4x PCLKx.
-            if !rcc.is_enabled_tim_pre() {
-                match prescaler {
-                    APBPrescaler::DivideBy1 | APBPrescaler::DivideBy2 => hclk_freq,
-                    _ => hclk_freq / usize::from(prescaler) * 2,
-                }
-            } else {
-                match prescaler {
-                    APBPrescaler::DivideBy1 | APBPrescaler::DivideBy2 | APBPrescaler::DivideBy4 => {
-                        hclk_freq
-                    }
-                    _ => hclk_freq / usize::from(prescaler) * 4,
-                }
-            }
-        }
-        let hclk_freq = self.rcc.get_sys_clock_frequency();
-        match self.clock {
-            PeripheralClockType::AHB1(_)
-            | PeripheralClockType::AHB2(_)
-            | PeripheralClockType::AHB3(_) => hclk_freq as u32,
-            PeripheralClockType::APB1(ref v) => {
-                let prescaler = self.rcc.get_apb1_prescaler();
-                match v {
-                    PCLK1::TIM2 => tim_freq(self.rcc, hclk_freq, prescaler) as u32,
-                    _ => (hclk_freq / usize::from(prescaler)) as u32,
-                }
-            }
-            PeripheralClockType::APB2(_) => {
-                let prescaler = self.rcc.get_apb2_prescaler();
-                (hclk_freq / usize::from(prescaler)) as u32
-            }
-            //TODO: implement clock frequency retrieval for RTC and PWR peripherals
-            PeripheralClockType::RTC => todo!(),
-            PeripheralClockType::PWR => todo!(),
-        }
+impl<'a, C> PeripheralClock<'a, C>
+where
+    C: ChipSpecs,
+{
+    pub const fn new(clock: PeripheralClockType, rcc: &'a Rcc, clocks: &'a Clocks<'a, C>) -> Self {
+        Self { clock, rcc, clocks }
     }
 }
 
-impl<'a> ClockInterface for PeripheralClock<'a> {
+impl<'a, C> ClockInterface for PeripheralClock<'a, C>
+where
+    C: ChipSpecs,
+{
     fn is_enabled(&self) -> bool {
         match self.clock {
             PeripheralClockType::AHB1(ref v) => match v {
@@ -325,5 +296,146 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
             PeripheralClockType::RTC => self.rcc.disable_rtc_clock(),
             PeripheralClockType::PWR => self.rcc.disable_pwr_clock(),
         }
+    }
+}
+
+impl<'a, C> PeripheralClockInterface for PeripheralClock<'a, C>
+where
+    C: ChipSpecs,
+{
+    fn get_frequency(&self) -> u32 {
+        #[inline(always)]
+        fn tim_freq(rcc: &Rcc, hclk_freq: usize, prescaler: APBPrescaler) -> usize {
+            // Reference Manual RM0090 section 6.2
+            // When TIMPRE bit of the RCC_DCKCFGR register is reset, if APBx prescaler is 1, then
+            // TIMxCLK = PCLKx, otherwise TIMxCLK = 2x PCLKx.
+            // When TIMPRE bit in the RCC_DCKCFGR register is set, if APBx prescaler is 1,2 or 4,
+            // then TIMxCLK = HCLK, otherwise TIMxCLK = 4x PCLKx.
+            if !rcc.is_enabled_tim_pre() {
+                match prescaler {
+                    APBPrescaler::DivideBy1 | APBPrescaler::DivideBy2 => hclk_freq,
+                    _ => hclk_freq / usize::from(prescaler) * 2,
+                }
+            } else {
+                match prescaler {
+                    APBPrescaler::DivideBy1 | APBPrescaler::DivideBy2 | APBPrescaler::DivideBy4 => {
+                        hclk_freq
+                    }
+                    _ => hclk_freq / usize::from(prescaler) * 4,
+                }
+            }
+        }
+        let hclk_freq = self.rcc.get_sys_clock_frequency();
+        match self.clock {
+            PeripheralClockType::AHB1(_)
+            | PeripheralClockType::AHB2(_)
+            | PeripheralClockType::AHB3(_) => hclk_freq as u32,
+            PeripheralClockType::APB1(ref v) => {
+                let prescaler = self.rcc.get_apb1_prescaler();
+                match v {
+                    PCLK1::TIM2 => tim_freq(self.rcc, hclk_freq, prescaler) as u32,
+                    _ => (hclk_freq / usize::from(prescaler)) as u32,
+                }
+            }
+            PeripheralClockType::APB2(_) => {
+                let prescaler = self.rcc.get_apb2_prescaler();
+                (hclk_freq / usize::from(prescaler)) as u32
+            }
+            //TODO: implement clock frequency retrieval for RTC and PWR peripherals
+            PeripheralClockType::RTC => todo!(),
+            PeripheralClockType::PWR => todo!(),
+        }
+    }
+
+    fn configure(&self) {
+        match self.clock {
+            PeripheralClockType::AHB2(HCLK2::RNG) => self.rcc.configure_rng_clock(),
+            _ => (),
+        }
+    }
+}
+
+pub struct GpioClocks<'a, C: ChipSpecs>([PeripheralClock<'a, C>; GPIO_NUM_PORTS]);
+
+impl<'a, C> GpioClocks<'a, C>
+where
+    C: ChipSpecs,
+{
+    pub fn new(rcc: &'a Rcc, clocks: &'a Clocks<'a, C>) -> Self {
+        Self ([
+            PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::GPIOA), rcc, clocks),
+            PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::GPIOB), rcc, clocks),
+            PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::GPIOC), rcc, clocks),
+            PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::GPIOD), rcc, clocks),
+            PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::GPIOE), rcc, clocks),
+            PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::GPIOF), rcc, clocks),
+            PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::GPIOG), rcc, clocks),
+            PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::GPIOH), rcc, clocks),
+        ])
+    }
+    pub fn get_refs(&self) -> [&dyn PeripheralClockInterface; GPIO_NUM_PORTS] {
+        [
+            &self.0[0],
+            &self.0[1],
+            &self.0[2],
+            &self.0[3],
+            &self.0[4],
+            &self.0[5],
+            &self.0[6],
+            &self.0[7],
+        ]
+    }
+}
+
+pub struct PeripheralClocks<'a, C>
+where
+    C: ChipSpecs,
+{
+    pub adc1: PeripheralClock<'a, C>,
+    pub can1: PeripheralClock<'a, C>,
+    pub dac: PeripheralClock<'a, C>,
+    pub dma1: PeripheralClock<'a, C>,
+    pub dma2: PeripheralClock<'a, C>,
+    pub fsmc: PeripheralClock<'a, C>,
+    pub i2c1: PeripheralClock<'a, C>,
+    pub pwr: PeripheralClock<'a, C>,
+    pub rtc: PeripheralClock<'a, C>,
+    pub syscfg: PeripheralClock<'a, C>,
+    pub spi3: PeripheralClock<'a, C>,
+    pub tim2: PeripheralClock<'a, C>,
+    pub trng: PeripheralClock<'a, C>,
+    pub usart1: PeripheralClock<'a, C>,
+    pub usart2: PeripheralClock<'a, C>,
+    pub usart3: PeripheralClock<'a, C>,
+    gpio_ports: GpioClocks<'a, C>,
+}
+
+impl<'a, C> PeripheralClocks<'a, C>
+where
+    C: ChipSpecs,
+{
+    pub fn new(rcc: &'a Rcc, clocks: &'a Clocks<'a, C>) -> Self {
+        Self {
+            adc1: PeripheralClock::new(PeripheralClockType::APB2(PCLK2::ADC1), rcc, clocks),
+            can1: PeripheralClock::new(PeripheralClockType::APB1(PCLK1::CAN1), rcc, clocks),
+            dac: PeripheralClock::new(PeripheralClockType::APB1(PCLK1::DAC), rcc, clocks),
+            dma1: PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::DMA1), rcc, clocks),
+            dma2: PeripheralClock::new(PeripheralClockType::AHB1(HCLK1::DMA2), rcc, clocks),
+            fsmc: PeripheralClock::new(PeripheralClockType::AHB3(HCLK3::FMC), rcc, clocks),
+            i2c1: PeripheralClock::new(PeripheralClockType::APB1(PCLK1::I2C1), rcc, clocks),
+            pwr: PeripheralClock::new(PeripheralClockType::PWR, rcc, clocks),
+            rtc: PeripheralClock::new(PeripheralClockType::RTC, rcc, clocks),
+            syscfg: PeripheralClock::new(PeripheralClockType::APB2(PCLK2::SYSCFG), rcc, clocks),
+            spi3: PeripheralClock::new(PeripheralClockType::APB1(PCLK1::SPI3), rcc, clocks),
+            tim2: PeripheralClock::new(PeripheralClockType::APB1(PCLK1::TIM2), rcc, clocks),
+            trng: PeripheralClock::new(PeripheralClockType::AHB2(HCLK2::RNG), rcc, clocks),
+            usart1: PeripheralClock::new(PeripheralClockType::APB2(PCLK2::USART1), rcc, clocks),
+            usart2: PeripheralClock::new(PeripheralClockType::APB1(PCLK1::USART2), rcc, clocks),
+            usart3: PeripheralClock::new(PeripheralClockType::APB1(PCLK1::USART3), rcc, clocks),
+            gpio_ports: GpioClocks::new(rcc, clocks),
+        }
+    }
+    pub fn get_gpio_ports(&self) -> [&dyn PeripheralClockInterface; GPIO_NUM_PORTS] {
+        self.gpio_ports.get_refs()
     }
 }

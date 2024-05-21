@@ -6,15 +6,13 @@ use cortexm4::support::atomic;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::hil;
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::PeripheralClockInterface;
 use crate::exti::{self, LineId};
-use crate::rcc;
-use crate::clocks::periph;
 
 /// General-purpose I/Os
 #[repr(C)]
@@ -586,7 +584,7 @@ enum_from_primitive! {
 
 pub struct Port<'a> {
     registers: StaticRef<GpioRegisters>,
-    clock: PortClock<'a>,
+    clock: &'a dyn PeripheralClockInterface,
 }
 
 macro_rules! declare_gpio_pins {
@@ -597,6 +595,18 @@ macro_rules! declare_gpio_pins {
     }
 }
 
+pub enum GpioPort {
+    GPIOA = 0,
+    GPIOB = 1,
+    GPIOC = 2,
+    GPIOD = 3,
+    GPIOE = 4,
+    GPIOF = 5,
+    GPIOG = 6,
+    GPIOH = 7,
+}
+pub const GPIO_NUM_PORTS: usize = 8;
+
 // Note: This would probably be better structured as each port holding
 // the pins associated with it, but here they are kept separate for
 // historical reasons. If writing new GPIO code, look elsewhere for
@@ -604,69 +614,48 @@ macro_rules! declare_gpio_pins {
 // We need to use `Option<Pin>`, instead of just `Pin` because GPIOH has
 // only two pins - PH00 and PH01, rather than the usual sixteen pins.
 pub struct GpioPorts<'a> {
-    ports: [Port<'a>; 8],
-    pub pins: [[Option<Pin<'a>>; 16]; 8],
+    ports: [Port<'a>; GPIO_NUM_PORTS],
+    pub pins: [[Option<Pin<'a>>; 16]; GPIO_NUM_PORTS],
 }
 
 impl<'a> GpioPorts<'a> {
-    pub fn new(rcc: &'a rcc::Rcc, exti: &'a exti::Exti<'a>) -> Self {
+    pub fn new(
+        clocks: [&'a dyn PeripheralClockInterface; GPIO_NUM_PORTS],
+        exti: &'a exti::Exti<'a>,
+    ) -> Self {
         Self {
             ports: [
                 Port {
                     registers: GPIOA_BASE,
-                    clock: PortClock(periph::PeripheralClock::new(
-                        periph::PeripheralClockType::AHB1(periph::HCLK1::GPIOA),
-                        rcc,
-                    )),
+                    clock: clocks[GpioPort::GPIOA as usize],
                 },
                 Port {
                     registers: GPIOB_BASE,
-                    clock: PortClock(periph::PeripheralClock::new(
-                        periph::PeripheralClockType::AHB1(periph::HCLK1::GPIOB),
-                        rcc,
-                    )),
+                    clock: clocks[GpioPort::GPIOB as usize],
                 },
                 Port {
                     registers: GPIOC_BASE,
-                    clock: PortClock(periph::PeripheralClock::new(
-                        periph::PeripheralClockType::AHB1(periph::HCLK1::GPIOC),
-                        rcc,
-                    )),
+                    clock: clocks[GpioPort::GPIOC as usize],
                 },
                 Port {
                     registers: GPIOD_BASE,
-                    clock: PortClock(periph::PeripheralClock::new(
-                        periph::PeripheralClockType::AHB1(periph::HCLK1::GPIOD),
-                        rcc,
-                    )),
+                    clock: clocks[GpioPort::GPIOD as usize],
                 },
                 Port {
                     registers: GPIOE_BASE,
-                    clock: PortClock(periph::PeripheralClock::new(
-                        periph::PeripheralClockType::AHB1(periph::HCLK1::GPIOE),
-                        rcc,
-                    )),
+                    clock: clocks[GpioPort::GPIOE as usize],
                 },
                 Port {
                     registers: GPIOF_BASE,
-                    clock: PortClock(periph::PeripheralClock::new(
-                        periph::PeripheralClockType::AHB1(periph::HCLK1::GPIOF),
-                        rcc,
-                    )),
+                    clock: clocks[GpioPort::GPIOF as usize],
                 },
                 Port {
                     registers: GPIOG_BASE,
-                    clock: PortClock(periph::PeripheralClock::new(
-                        periph::PeripheralClockType::AHB1(periph::HCLK1::GPIOG),
-                        rcc,
-                    )),
+                    clock: clocks[GpioPort::GPIOG as usize],
                 },
                 Port {
                     registers: GPIOH_BASE,
-                    clock: PortClock(periph::PeripheralClock::new(
-                        periph::PeripheralClockType::AHB1(periph::HCLK1::GPIOH),
-                        rcc,
-                    )),
+                    clock: clocks[GpioPort::GPIOH as usize],
                 },
             ],
             pins: [
@@ -740,22 +729,6 @@ impl Port<'_> {
 
     pub fn disable_clock(&self) {
         self.clock.disable();
-    }
-}
-
-struct PortClock<'a>(periph::PeripheralClock<'a>);
-
-impl ClockInterface for PortClock<'_> {
-    fn is_enabled(&self) -> bool {
-        self.0.is_enabled()
-    }
-
-    fn enable(&self) {
-        self.0.enable();
-    }
-
-    fn disable(&self) {
-        self.0.disable();
     }
 }
 
