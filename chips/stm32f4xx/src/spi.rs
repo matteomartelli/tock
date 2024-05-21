@@ -17,7 +17,7 @@ use kernel::utilities::StaticRef;
 
 use crate::dma;
 use crate::dma::{Dma1, Dma1Peripheral};
-use crate::rcc;
+use crate::clocks::periph as phclk;
 
 /// Serial peripheral interface
 #[repr(C)]
@@ -510,7 +510,7 @@ impl<'a> dma::StreamClient<'a, Dma1<'a>> for Spi<'a> {
     }
 }
 
-pub struct SpiClock<'a>(pub rcc::PeripheralClock<'a>);
+pub struct SpiClock<'a>(pub phclk::PeripheralClock<'a>);
 
 impl ClockInterface for SpiClock<'_> {
     fn is_enabled(&self) -> bool {

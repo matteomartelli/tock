@@ -8,6 +8,7 @@ pub mod clocks;
 pub mod hse;
 pub mod hsi;
 pub mod pll;
+pub mod periph;
 
 pub use crate::clocks::clocks::tests;
 pub use crate::clocks::clocks::{Clocks, ClocksCtrl};

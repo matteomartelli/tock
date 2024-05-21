@@ -8,7 +8,7 @@
 //! Low-level CAN driver for STM32F4XX chips
 //!
 
-use crate::rcc;
+use crate::clocks::{periph as phclk, ClocksCtrl};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::can::{self, StandardBitTiming};
@@ -17,7 +17,6 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
-use crate::clocks::ClocksCtrl;
 
 pub const BRP_MIN_STM32: u32 = 0;
 pub const BRP_MAX_STM32: u32 = 1023;
@@ -476,8 +475,8 @@ impl<'a> Can<'a> {
     pub fn new(clocks: &'a dyn ClocksCtrl, registers: StaticRef<Registers>) -> Can<'a> {
         Can {
             registers: registers,
-            clock: CanClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::CAN1),
+            clock: CanClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB1(phclk::PCLK1::CAN1),
                 clocks,
             )),
             can_state: Cell::new(CanState::Sleep),
@@ -1114,7 +1113,7 @@ impl DeferredCallClient for Can<'_> {
     }
 }
 
-struct CanClock<'a>(rcc::PeripheralClock<'a>);
+struct CanClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for CanClock<'_> {
     fn is_enabled(&self) -> bool {

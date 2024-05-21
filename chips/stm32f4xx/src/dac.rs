@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::rcc;
+use crate::clocks::{periph as phclk, ClocksCtrl};
 use core::cell::Cell;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
@@ -10,7 +10,6 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-use crate::clocks::clocks::ClocksCtrl;
 
 /// DAC
 #[repr(C)]
@@ -151,8 +150,8 @@ impl<'a> Dac<'a> {
     pub const fn new(clocks: &'a dyn ClocksCtrl,) -> Self {
         Self {
             registers: DAC_BASE,
-            clock: DacClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::DAC),
+            clock: DacClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB1(phclk::PCLK1::DAC),
                 clocks,
             )),
             initialized: Cell::new(false),
@@ -193,7 +192,7 @@ impl<'a> Dac<'a> {
     }
 }
 
-struct DacClock<'a>(rcc::PeripheralClock<'a>);
+struct DacClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for DacClock<'_> {
     fn is_enabled(&self) -> bool {
